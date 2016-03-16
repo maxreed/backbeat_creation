@@ -1,85 +1,87 @@
 import numpy as np
 import scipy
-import scipy.io.wavfile as wav
-np.set_printoptions(threshold=np.nan)
+import scipy.io.wavfile as wav          #Used to read in and write wave files
+np.set_printoptions(threshold=np.nan)   #Used to print arrays to text files nicely without elipses
 
-instrumentalFile = 'C:\Users\snaik\Desktop\Week10\Backbeat Youtube\pop_tests\let_it_go.wav'
+instrumentalFile = 'C:\Users\snaik\Desktop\Week10\Backbeat Youtube\pop_tests\sorry.wav'
 fs, data = wav.read(instrumentalFile)
-
-firstChannel = data[:,0]
 rows, cols = np.shape(data)
-midFile = rows/2
+
+firstChannel = data[:,0]                #We only care are about the first channel. 
+                                        #The second channel is expected to follow similar patterns
 
 
-#aim to find peaks in the file
-index = 1
-prevSamples = abs(firstChannel[0:2000])
-peaks = np.zeros(rows)
-
-dataFile = 'C:\Users\snaik\Desktop\Week10\Backbeat Youtube\Average.txt'
-iterator = rows/2000
+"""We are trying to smoothen the waveform"""
+iterator = rows/2000                    #This is equal to how many windows we need to take the average amplitude of
 print "ITERATE: " + str(iterator)
 
-average = np.zeros(iterator)
+dataFile = 'C:\Users\snaik\Desktop\Week10\Backbeat Youtube\Average.txt'         #Text file to save arrays in for logging
+
+average = np.zeros(iterator)            #Array to hold in the average amplitudes of windows
 
 for i in np.arange(0, iterator):
-    average[i] = np.mean(prevSamples)
     prevSamples = abs(firstChannel[2000*i:2000*i+2000])         #this is an absolute avergae
     #prevSamples = abs(firstChannel[i*100:i*100+800])           #this one is if we want a moving average
-    
-scipy.savetxt(dataFile, average)
+    average[i] = np.mean(prevSamples)
+                 
+scipy.savetxt(dataFile, average)        #Saves the array to a text file
 
-#find the max beats
-maxBeat = np.amax(average)
-tolerance = 500
+"""We are trying to find the beats in the waveform (assuming they have the maximum amplitude)"""
+maxAmp = np.amax(average)
+tolerance = 5000                         #Any window within 500 dB of the maximum amplitude is also a beat
 
-index = 0
+index = 0                               #holds the index of the window containing a beat (index obtained from "average")
 beats = np.array([])
 for means in average:
-    if means >= (maxBeat - 5000):
+    if means >= (maxAmp - tolerance):
         print 'beat!'
         beats = np.append(beats, index)
     index += 1
 
 print beats
 
-#print a very preliminary crude segment
+"""Find a beat that occurs near the middle of the song. This is so we don't get weird start/end rhythms"""
 len = np.size(beats)
 midpoint = len/2
-print midpoint
+midBeat = beats[midpoint]
+diffBtwBeats = beats[midpoint] - beats[midpoint-1]
 
-pointer = beats[midpoint]*2000
-start = beats[midpoint-2]*2000-1000
-end = beats[midpoint+2]*2000+1000
+"""This converts beat indices to sample numbers. Then it calculates the start and end of the segments"""
+#start = beats[midpoint-2]*2000-1000
+#end = beats[midpoint+2]*2000+1000
 
-#pick an ending with the same amplitude as the beginning
+#pick an ending with the same amplitude as the beginning. BUT THESE ARE BEATS!
 minDiff = 0
-minBeat = 0
-index = 0
-for i in beats:
+endBeat = 0
+#index = 0
+for i in np.arange(average.size):
     if i == 0:
-        minDiff = average[midpoint-1] - average[i]
-    elif i == (midpoint-1):
+        minDiff = average[midBeat-diffBtwBeats] - average[i]
+    elif i == (midBeat-5):
         continue
     else:
-        if (average[midpoint-1] - average[i]) < minDiff:
-            minDiff = average[midpoint-1] - average[i]
-            minBeat = index
+        if (average[midBeat-diffBtwBeats] - average[i]) < minDiff:
+            minDiff = average[midBeat-diffBtwBeats] - average[i]
+            endBeat = i
         else:
             continue
     print i
-    index += 1
+    #index += 1
+    
+#pick an ending with the same amplitude as the beginning. BUT THESE ARE NOT BEATS!
+
      
-pointer = beats[midpoint]*2000
-start = beats[midpoint-1]*2000-1000
-end = beats[minBeat]*2000+1000
-print str(midpoint-1) + " " + str(midpoint) + " " + str(minBeat)
+start = (midBeat-diffBtwBeats)*2000
+end = endBeat*2000
+#print str(midpoint-1) + " " + str(midpoint) + " " + str(minBeat)
 print str(start) + " " + str(end)
 
-
-instrumentalOut = data[end:start, :]
+if (start < end):
+    instrumentalOut = data[start:end, :]
+else:
+    instrumentalOut = data[end:start, :]
 instrumentalOut = np.vstack((instrumentalOut, instrumentalOut))
 print "SHAPE: " + str(np.shape(instrumentalOut))
 
 #Output the wave file
-wav.write('FROZENoutfile.wav', fs, instrumentalOut)
+wav.write('SORRYoutfile.wav', fs, instrumentalOut)
