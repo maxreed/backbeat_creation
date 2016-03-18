@@ -104,8 +104,8 @@ def makeBackBeat(song, begin): # song is of course the song that one wishes to g
     # this code will only search for repeatable segments in 25 seconds of the song.
     dataMod = dataMod[firstOcc:25*fs+firstOcc]
     
-    # make the fourier transform
-    X, F, N = stft(dataMod, window=sinebell(4096), hopsize=2056.0)
+    # and here is where the FT stuff starts
+    X, F, N = stft(dataMod)
     # the FT data will be complex. make it real by squaring each entry. set the minimum entry value to be greater than 0, so that one can take the log of every entry.
     SX = np.maximum(np.abs(X) ** 2, 10**-8)
     # the entries will vary by orders of magnitude. to reduce variation, take the log of every entry.
@@ -114,12 +114,14 @@ def makeBackBeat(song, begin): # song is of course the song that one wishes to g
     maxSX = SX.max()
     SX = SX/maxSX
     
-    # find the section to loop
-    
-    # we can throw out the high frequencies.
-    a = len(N)
+    # we can throw out the high frequencies. we can also average every 8 frequency bins into 1.
+    a = len(N)/8+1
     SX_smoothed = np.zeros((200, a))
-    SX_smoothed = SX[:200,:]
+    print SX.shape
+    print SX_smoothed.shape
+    for i in np.arange(200):
+        for j in np.arange(2, len(N)-2, 8):
+            SX_smoothed[i,j/8] = sum(SX[i,j-4:j+4])/9
     
     numFrames = SX_smoothed.shape[1]
     # right so this is where useful things happen. this is pretty lazy but for the amount of work required functions really well.
@@ -156,8 +158,11 @@ def makeBackBeat(song, begin): # song is of course the song that one wishes to g
     # create the segment that should be loopable.
     cut = data[songLoc1+firstOcc:songLoc2+firstOcc, :]
     
-    # reduce the blip one hears when restarting the loop.
-    cut = loop(cut)
+    try:
+        # reduce the blip one hears when restarting the loop.
+        cut = loop(cut)
+    except:
+        print "i honestly have no idea why this error is happening"
     
     # make the loop run 4 times.
     cut = np.concatenate((cut,cut,cut,cut),axis=0)
